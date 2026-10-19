@@ -1,0 +1,9 @@
+CS101,Intro to Programming
+CS102,Data Structures,CS101
+CS103,Algorithms,CS102
+CS201,Discrete Math
+CS202,Computer Architecture,CS101
+CS301,Operating Systems,CS102,CS201
+CS302,Databases,CS102
+CS303,Software Engineering,CS103
+CS401,Capstone,CS301,CS302,CS303

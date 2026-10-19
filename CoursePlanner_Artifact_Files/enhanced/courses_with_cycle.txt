@@ -1,0 +1,4 @@
+CS101,Intro to Programming
+CS102,Data Structures,CS101
+CS401,Circular A,CS402
+CS402,Circular B,CS401

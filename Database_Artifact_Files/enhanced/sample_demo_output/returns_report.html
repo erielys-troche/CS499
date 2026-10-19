@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>RMA Returns Report</title>
+<style>
+ body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; color: #222; }
+ h1, h2, h3 { color: #1E2761; }
+ table { border-collapse: collapse; margin-bottom: 20px; }
+ th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+ th { background: #e8ecf8; }
+ img { max-width: 100%; }
+ .demo { background: #fff3cd; padding: 10px; border: 1px solid #e0c36a; }
+</style></head><body>
+<h1>RMA Returns Report</h1>
+<p>Generated 2026-10-08 03:02</p>
+<p class="demo"><strong>DEMO DATA:</strong> this report was built from made-up sample data, not the real QuantigrationUpdates database.</p>
+<h2>Key findings</h2><ul><li>Pennsylvania has the most returns (21).</li><li>BAS-48-1 C has the highest return rate at 19.42% of its orders.</li><li>BAS-24-1 C has the lowest return rate at 3.14%.</li><li>The most common return reason is &quot;No longer needed&quot; (166 returns).</li></ul>
+<h2>Summary of returns by state</h2><table><tr><td>States with returns</td><td>46</td></tr><tr><td>Total returns</td><td>623</td></tr><tr><td>Average per state</td><td>13.5</td></tr><tr><td>Median per state</td><td>13.5</td></tr><tr><td>Std. deviation</td><td>3.6</td></tr><tr><td>Highest</td><td>Pennsylvania (21)</td></tr><tr><td>Lowest</td><td>Oregon (7)</td></tr></table>
+<h2>Charts</h2><h3>Top states by number of returns</h3><img src="returns_by_state.png" alt="Top states by number of returns"><h3>Return rate by product</h3><img src="return_rate_by_sku.png" alt="Return rate by product">
+<h2>Details</h2><h3>Return rate by product</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>SKU</th>
+      <th>ProductDescription</th>
+      <th>TotalOrders</th>
+      <th>TotalReturns</th>
+      <th>ReturnRatePct</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>BAS-48-1 C</td>
+      <td>Basic Switch 10/100/1000 BaseT 48 port</td>
+      <td>654</td>
+      <td>127</td>
+      <td>19.42</td>
+    </tr>
+    <tr>
+      <td>ENT-48-40F</td>
+      <td>Enterprise Switch 40GigE SFP+ 48 port</td>
+      <td>633</td>
+      <td>97</td>
+      <td>15.32</td>
+    </tr>
+    <tr>
+      <td>ENT-48-10F</td>
+      <td>Enterprise Switch 10GigE SFP+ 48 port</td>
+      <td>693</td>
+      <td>85</td>
+      <td>12.27</td>
+    </tr>
+    <tr>
+      <td>ADV-24-10C</td>
+      <td>Advanced Switch 10GigE Copper 24 port</td>
+      <td>670</td>
+      <td>71</td>
+      <td>10.60</td>
+    </tr>
+    <tr>
+      <td>BAS-08-1 C</td>
+      <td>Basic Switch 10/100/1000 BaseT 8 port</td>
+      <td>613</td>
+      <td>63</td>
+      <td>10.28</td>
+    </tr>
+    <tr>
+      <td>ADV-48-10F</td>
+      <td>Advanced Switch 10 GigE Copper/Fiber 44 port copper 4 port fiber</td>
+      <td>680</td>
+      <td>69</td>
+      <td>10.15</td>
+    </tr>
+    <tr>
+      <td>ENT-24-10F</td>
+      <td>Enterprise Switch 10GigE SFP+ 24 Port</td>
+      <td>691</td>
+      <td>55</td>
+      <td>7.96</td>
+    </tr>
+    <tr>
+      <td>ENT-24-40F</td>
+      <td>Enterprise Switch 40GigE SFP+ 24 port</td>
+      <td>729</td>
+      <td>36</td>
+      <td>4.94</td>
+    </tr>
+    <tr>
+      <td>BAS-24-1 C</td>
+      <td>Basic Switch 10/100/1000 BaseT 24 port</td>
+      <td>637</td>
+      <td>20</td>
+      <td>3.14</td>
+    </tr>
+  </tbody>
+</table><h3>Returns by reason</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Reason</th>
+      <th>AmountOfReturns</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>No longer needed</td>
+      <td>166</td>
+    </tr>
+    <tr>
+      <td>Wrong item</td>
+      <td>157</td>
+    </tr>
+    <tr>
+      <td>Defective</td>
+      <td>151</td>
+    </tr>
+    <tr>
+      <td>Not as described</td>
+      <td>149</td>
+    </tr>
+  </tbody>
+</table><h3>Returns by product in Pennsylvania</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>SKU</th>
+      <th>AmountOfReturns</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ENT-48-40F</td>
+      <td>5</td>
+    </tr>
+    <tr>
+      <td>ENT-48-10F</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>BAS-48-1 C</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>ADV-24-10C</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>ENT-24-10F</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td>BAS-08-1 C</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td>ENT-24-40F</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <td>BAS-24-1 C</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <td>ADV-48-10F</td>
+      <td>1</td>
+    </tr>
+  </tbody>
+</table>
+<h2>Limitations</h2>
+<p>This report counts every RMA record as a return. The data does not say whether a
+return was caused by the product itself, shipping damage, or customer preference, so
+these numbers show where to look, not why returns happen.</p>
+</body></html>
