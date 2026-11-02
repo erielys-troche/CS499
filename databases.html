@@ -1,0 +1,681 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Databases: QuantigrationUpdates returns report | Erielys Troche-Rodriguez</title><meta name="description" content="A MySQL database from DAD 220, with indexes, stored procedures, and an automated Python report.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a class="who" href="index.html">Erielys Troche-Rodriguez</a><nav aria-label="Main"><a href="index.html">Self-assessment</a><a href="code-review.html">Code review</a><a href="software.html">Software design</a><a href="algorithms.html">Algorithms</a><a href="databases.html" aria-current="page">Databases</a></nav></header>
+<main><section class="hero"><h1>Databases: QuantigrationUpdates returns report</h1><p class="lead">A MySQL database from DAD 220, with indexes, stored procedures, and an automated Python report.</p></section><section><h2>The original artifact</h2><p>My artifact for this category is the QuantigrationUpdates database from DAD 220 (Introduction to Structured Database Environments), which I built in MySQL around April 2024. It has three tables, Customers (later renamed ‘Collaborator’), Orders, and RMA, connected with primary and foreign keys. I loaded about 38,000 rows of CSV data into it, wrote queries for counts, joins, updates, and deletes, and then wrote a short report for a product manager about returns by state and by product.</p></section><section><h2>Why I chose it</h2><p>I chose this one because it’s the only project where I worked with a real-sized dataset, and because the end result was a report meant for an actual decision-maker. But looking back at it, everything was done by hand. I typed each query into the terminal, took a screenshot, and pasted it into a Word document, so if a manager wanted updated numbers next month, I would have had to do the whole thing over again.</p></section><section><h2>The enhancement</h2><p>For enhancement, I improved the database itself and then automated the reporting on top of it. On the database side, I wrote a SQL script, then added indexes on the columns I actually filter and group by (State, SKU, and Status), a view for returns that aren’t complete yet, and four stored procedures that replace the hand-typed queries. One of the procedures takes a parameter, so the value is never pasted into the SQL text. I also added a read-only account that can only run those procedures and read the view, so the report can’t change or delete any data. On the Python side, I wrote a script using pandas and matplotlib that calls the procedures, calculates summary statistics, makes charts, and writes an HTML report on its own. I also redefined the product return percentage so it’s each product’s own orders, which makes it a real return rate and easier to interpret than what I had in Project Two. To test it, I wrote six unit tests, including one that tries to sneak a DROP TABLE command in through the state parameter and confirms the table is still there afterward.</p></section><section><h2>Course outcomes</h2><p>I planned to hit outcomes number one, three, four, and five with this enhancement, and I believe I did. For outcome number three, I had to think about the trade-offs of indexing, since indexes make reads faster but add a little work every time data is inserted or changed, and I decided it was worth it because this data is read much more than it’s written. For outcome number four, I used Python, pandas, and stored procedures, which were new tools compared to the original project. For outcome number five, I used parameterized queries, a least-privilege account, and environment variables for the login info so no password is ever written in the code. And for outcome number one, the whole point of the automated report is to give a product manager something clear they can use to make decisions without needing to understand SQL. I don’t have any updates to my outcome plan from Module One.</p><p>Outcomes met, partly met, and not met: I met outcomes three (indexing trade-offs), four (Python, pandas, and stored procedures), and five (parameterized queries, a read-only account, and environment variables for login info). I partly met outcome one, because the report is written for a product manager but I haven&#x27;t tested it on a real one. I did not fully meet one thing: I wasn&#x27;t able to run the MySQL script on a server in my capstone workspace. The Python report and its six unit tests run, but only against demo data, so I still need to run the SQL script in Codio.</p></section><section><h2>What I learned</h2><p>The biggest thing I learned came from a mistake in my own plan. I had said in my code review that I would add indexes to the foreign key columns because I thought they weren’t indexed. When I went back to my DESCRIBE output from Project One, the Key column already said MUL for both of them, which means MySQL had already created those indexes automatically. So I had to change the plan and index the columns I actually searched and grouped by instead. It was a small thing, but it taught me to check what the database is really doing instead of assuming. Another challenge was deciding what ‘return rate’ should actually mean. My original percentage was hard to explain, and once I tried to write it as a stored procedure, I had to stop and decide what the number was supposed to say. I also added a demo mode to the Python script that builds a small sample database, so the report and the tests can run on any computer without setting up MySQL. That way I could test the logic on its own before connecting it to the real database. The SQL script is written for MySQL, and the report can connect to it with the mysql option once the environment variables are set. Overall, this milestone made me feel like I went from just writing queries to actually building something that other people could use, and that is the kind of work I would like to pursue.</p></section><section><h2>Incorporating feedback</h2><p>My instructor gave me a 100% and did not request any changes. The one correction I made was in my code review, I said the foreign key columns were not indexed, but my own DESCRIBE output shows MySQL had already indexed them. I changed the plan to index State, SKU, and Status instead, so the code review video and this narrative don’t fully match.</p></section><section><h2>Code</h2><h3>Original</h3><details class="code"><summary>QuantigrationUpdates_original.sql</summary><pre><code>-- QuantigrationUpdates_original.sql
+-- Original artifact from DAD 220 (Project One and Project Two).
+--
+-- These are the commands I originally ran by hand in the MySQL terminal
+-- in Codio. The other practice queries from Project One (inserts, updates,
+-- deletes, CSV export) were also run interactively and are not repeated here.
+--
+-- Weaknesses noted in my code review:
+--   * every analysis query was run manually and screenshotted, so none of
+--     it is reusable or automated
+--   * the analysis queries are raw, ad hoc SQL (no stored procedures or views)
+--   * filter/group columns like State and SKU have no index of their own
+
+CREATE DATABASE QuantigrationUpdates;
+USE QuantigrationUpdates;
+
+-- ---------- Project One: schema ----------
+CREATE TABLE Customers(
+    CustomerID INT,
+    FirstName VARCHAR(25),
+    LastName VARCHAR(25),
+    StreetAddress VARCHAR(50),
+    City VARCHAR(50),
+    State VARCHAR(25),
+    ZipCode INT,
+    Telephone VARCHAR(15),
+    PRIMARY KEY (CustomerID)
+);
+
+CREATE TABLE Orders(
+    OrderID INT,
+    CustomerID INT,
+    SKU VARCHAR(25),
+    Description VARCHAR(100),
+    PRIMARY KEY (OrderID),
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+CREATE TABLE RMA(
+    RMAID INT,
+    OrderID INT,
+    Step VARCHAR(50),
+    Status VARCHAR(15),
+    Reason VARCHAR(25),
+    PRIMARY KEY (RMAID),
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID)
+);
+
+-- ---------- Project One: load the CSV data ----------
+LOAD DATA INFILE &#x27;/home/codio/workspace/customers.csv&#x27;
+    INTO TABLE Customers
+    FIELDS TERMINATED BY &#x27;,&#x27;
+    ENCLOSED BY &#x27;&quot;&#x27;
+    LINES TERMINATED BY &#x27;\r\n&#x27;;
+
+LOAD DATA INFILE &#x27;/home/codio/workspace/orders.csv&#x27;
+    INTO TABLE Orders
+    FIELDS TERMINATED BY &#x27;,&#x27;
+    ENCLOSED BY &#x27;&quot;&#x27;
+    LINES TERMINATED BY &#x27;\r\n&#x27;;
+
+LOAD DATA INFILE &#x27;/home/codio/workspace/rma.csv&#x27;
+    INTO TABLE RMA
+    FIELDS TERMINATED BY &#x27;,&#x27;
+    ENCLOSED BY &#x27;&quot;&#x27;
+    LINES TERMINATED BY &#x27;\r\n&#x27;;
+
+-- ---------- Project One: requirement change ----------
+RENAME TABLE Customers TO Collaborator;
+
+-- ---------- Project Two: analysis queries (run by hand) ----------
+-- A. Number of returns by state
+SELECT Collaborator.State, COUNT(*) AS AmountOfReturns
+FROM Orders
+INNER JOIN RMA ON Orders.OrderID = RMA.OrderID
+INNER JOIN Collaborator ON Collaborator.CustomerID = Orders.CustomerID
+GROUP BY State
+ORDER BY AmountOfReturns DESC;
+
+-- B. Percentage of returns by product type
+SELECT
+    SKU AS ProductSKU,
+    Description AS ProductDescription,
+    (COUNT(*) * 100 / (SELECT COUNT(*) FROM Orders WHERE Status = &#x27;Complete&#x27;)) AS ReturnsPercentage
+FROM Orders
+INNER JOIN RMA ON Orders.OrderID = RMA.OrderID
+WHERE Status = &#x27;Complete&#x27;
+GROUP BY SKU, Description
+ORDER BY ReturnsPercentage DESC;
+</code></pre></details><h3>Enhanced</h3><details class="code"><summary>01_database_enhancements.sql</summary><pre><code>-- 01_database_enhancements.sql
+-- ENHANCEMENT (Milestone Four — Databases)
+--
+-- Run this ONCE in MySQL (Codio terminal) after the original tables are
+-- created and loaded:
+--     mysql&gt; SOURCE 01_database_enhancements.sql;
+--
+-- What this adds to the original artifact:
+--   1. Indexes on the columns the analysis actually filters/groups by
+--   2. A view for returns that are still open
+--   3. Stored procedures for the report queries (one takes a parameter)
+--   4. A least-privilege, read-only account for the Python report
+
+USE QuantigrationUpdates;
+
+-- ---------------------------------------------------------------------
+-- 1. INDEXES
+-- ---------------------------------------------------------------------
+-- NOTE: I originally planned to index the foreign key columns
+-- (Orders.CustomerID and RMA.OrderID), but DESCRIBE showed &quot;MUL&quot; in the
+-- Key column for both -- MySQL (InnoDB) already creates an index on a
+-- foreign key automatically. So I index the columns the queries use for
+-- WHERE / GROUP BY instead.
+--
+-- Trade-off: each index speeds up reads on that column but adds a little
+-- work to every INSERT/UPDATE/DELETE and uses extra storage. These columns
+-- are read far more than they are written, so it&#x27;s worth it.
+--
+-- (If you need to re-run this file, drop the indexes first:
+--  DROP INDEX idx_collaborator_state ON Collaborator; etc.)
+CREATE INDEX idx_collaborator_state ON Collaborator (State);
+CREATE INDEX idx_orders_sku         ON Orders (SKU);
+CREATE INDEX idx_rma_status         ON RMA (Status);
+
+-- To check whether MySQL actually uses an index, run for example:
+--   EXPLAIN SELECT State, COUNT(*) FROM Collaborator GROUP BY State;
+
+-- ---------------------------------------------------------------------
+-- 2. VIEW: returns that are not finished yet
+-- ---------------------------------------------------------------------
+-- Note: rows with a NULL Status are not included because NULL &lt;&gt; &#x27;Complete&#x27;
+-- is not true in SQL.
+CREATE OR REPLACE VIEW ActiveReturnsView AS
+SELECT
+    r.RMAID,
+    r.OrderID,
+    r.Status,
+    r.Step,
+    r.Reason,
+    o.SKU,
+    c.State
+FROM RMA r
+INNER JOIN Orders o       ON o.OrderID = r.OrderID
+INNER JOIN Collaborator c ON c.CustomerID = o.CustomerID
+WHERE r.Status &lt;&gt; &#x27;Complete&#x27;;
+
+-- ---------------------------------------------------------------------
+-- 3. STORED PROCEDURES
+-- ---------------------------------------------------------------------
+DELIMITER $$
+
+-- Returns by state (replaces the hand-typed query from Project Two)
+DROP PROCEDURE IF EXISTS GetReturnsByState$$
+CREATE PROCEDURE GetReturnsByState()
+BEGIN
+    SELECT c.State AS State, COUNT(*) AS AmountOfReturns
+    FROM RMA r
+    INNER JOIN Orders o       ON o.OrderID = r.OrderID
+    INNER JOIN Collaborator c ON c.CustomerID = o.CustomerID
+    GROUP BY c.State
+    ORDER BY AmountOfReturns DESC;
+END$$
+
+-- Return rate by product: returns for a SKU divided by orders for that SKU.
+-- (The Project Two version divided by a total instead of by each product&#x27;s
+-- own orders, which made the percentages hard to interpret.)
+DROP PROCEDURE IF EXISTS GetReturnRateBySKU$$
+CREATE PROCEDURE GetReturnRateBySKU()
+BEGIN
+    SELECT
+        o.SKU AS SKU,
+        MAX(o.Description) AS ProductDescription,
+        COUNT(DISTINCT o.OrderID) AS TotalOrders,
+        COUNT(r.RMAID) AS TotalReturns,
+        ROUND(COUNT(r.RMAID) * 100.0 / COUNT(DISTINCT o.OrderID), 2) AS ReturnRatePct
+    FROM Orders o
+    LEFT JOIN RMA r ON r.OrderID = o.OrderID
+    GROUP BY o.SKU
+    ORDER BY ReturnRatePct DESC;
+END$$
+
+-- Returns by reason
+DROP PROCEDURE IF EXISTS GetReturnsByReason$$
+CREATE PROCEDURE GetReturnsByReason()
+BEGIN
+    SELECT COALESCE(Reason, &#x27;Unknown&#x27;) AS Reason, COUNT(*) AS AmountOfReturns
+    FROM RMA
+    GROUP BY COALESCE(Reason, &#x27;Unknown&#x27;)
+    ORDER BY AmountOfReturns DESC;
+END$$
+
+-- Returns for ONE state, broken down by product. Takes a parameter, so the
+-- state value is never pasted into the SQL text (prevents SQL injection).
+DROP PROCEDURE IF EXISTS GetReturnsBySkuForState$$
+CREATE PROCEDURE GetReturnsBySkuForState(IN p_state VARCHAR(25))
+BEGIN
+    SELECT o.SKU AS SKU, COUNT(*) AS AmountOfReturns
+    FROM RMA r
+    INNER JOIN Orders o       ON o.OrderID = r.OrderID
+    INNER JOIN Collaborator c ON c.CustomerID = o.CustomerID
+    WHERE c.State = p_state
+    GROUP BY o.SKU
+    ORDER BY AmountOfReturns DESC;
+END$$
+
+DELIMITER ;
+
+-- ---------------------------------------------------------------------
+-- 4. LEAST-PRIVILEGE ACCOUNT FOR THE PYTHON REPORT
+-- ---------------------------------------------------------------------
+-- The report only needs to run these procedures and read the view. It does
+-- not need (and should not have) permission to change or delete data.
+-- Stored procedures run with their creator&#x27;s rights by default, so this
+-- account never needs direct access to the tables.
+--
+-- CHANGE THE PASSWORD before running. Do not commit a real password to GitHub.
+-- (This section is optional if your Codio account can&#x27;t create users.)
+CREATE USER IF NOT EXISTS &#x27;rma_analyst&#x27;@&#x27;localhost&#x27; IDENTIFIED BY &#x27;CHANGE_ME_BEFORE_USE&#x27;;
+GRANT EXECUTE ON PROCEDURE QuantigrationUpdates.GetReturnsByState       TO &#x27;rma_analyst&#x27;@&#x27;localhost&#x27;;
+GRANT EXECUTE ON PROCEDURE QuantigrationUpdates.GetReturnRateBySKU      TO &#x27;rma_analyst&#x27;@&#x27;localhost&#x27;;
+GRANT EXECUTE ON PROCEDURE QuantigrationUpdates.GetReturnsByReason      TO &#x27;rma_analyst&#x27;@&#x27;localhost&#x27;;
+GRANT EXECUTE ON PROCEDURE QuantigrationUpdates.GetReturnsBySkuForState TO &#x27;rma_analyst&#x27;@&#x27;localhost&#x27;;
+GRANT SELECT ON QuantigrationUpdates.ActiveReturnsView TO &#x27;rma_analyst&#x27;@&#x27;localhost&#x27;;
+</code></pre></details><details class="code"><summary>returns_report.py</summary><pre><code>&quot;&quot;&quot;
+returns_report.py
+ENHANCEMENT (Milestone Four -- Databases)
+
+Automated RMA (returns) report for the QuantigrationUpdates database.
+
+In the original artifact I ran every analysis query by hand in the MySQL
+terminal and screenshotted the output. This script replaces that: it
+calls the stored procedures from 01_database_enhancements.sql, analyzes
+the results with pandas, makes charts, and writes an HTML report.
+
+Two modes:
+  --mode demo   (default) builds a small made-up SQLite database in memory
+                so the script runs anywhere without MySQL. Output is
+                clearly labeled DEMO DATA.
+  --mode mysql  connects to the real MySQL database and calls the stored
+                procedures. Needs SQLAlchemy + PyMySQL (see requirements.txt)
+                and these environment variables:
+                DB_HOST, DB_NAME, DB_USER, DB_PASSWORD (DB_PORT optional).
+                Credentials are never written in the code on purpose.
+
+Examples:
+  python returns_report.py
+  python returns_report.py --mode mysql --top 15
+&quot;&quot;&quot;
+
+import argparse
+import html
+import os
+import random
+import sqlite3
+import sys
+from datetime import datetime
+
+import pandas as pd
+import matplotlib
+matplotlib.use(&quot;Agg&quot;)  # draw charts to files, no window needed
+import matplotlib.pyplot as plt
+
+OUTPUT_DIR = &quot;report_output&quot;
+NAVY = &quot;#1E2761&quot;
+
+# ---------------------------------------------------------------------
+# Queries. In mysql mode the stored procedure is called. In demo mode the
+# same SELECT that lives inside the procedure is run against SQLite.
+# Anything a user could type (like a state name) is passed as a bound
+# parameter and is never glued into the SQL string.
+# ---------------------------------------------------------------------
+QUERIES = {
+    &quot;returns_by_state&quot;: (
+        &quot;CALL GetReturnsByState()&quot;,
+        &quot;&quot;&quot;
+        SELECT c.State AS State, COUNT(*) AS AmountOfReturns
+        FROM RMA r
+        INNER JOIN Orders o       ON o.OrderID = r.OrderID
+        INNER JOIN Collaborator c ON c.CustomerID = o.CustomerID
+        GROUP BY c.State
+        ORDER BY AmountOfReturns DESC
+        &quot;&quot;&quot;,
+    ),
+    &quot;return_rate_by_sku&quot;: (
+        &quot;CALL GetReturnRateBySKU()&quot;,
+        &quot;&quot;&quot;
+        SELECT o.SKU AS SKU,
+               MAX(o.Description) AS ProductDescription,
+               COUNT(DISTINCT o.OrderID) AS TotalOrders,
+               COUNT(r.RMAID) AS TotalReturns,
+               ROUND(COUNT(r.RMAID) * 100.0 / COUNT(DISTINCT o.OrderID), 2) AS ReturnRatePct
+        FROM Orders o
+        LEFT JOIN RMA r ON r.OrderID = o.OrderID
+        GROUP BY o.SKU
+        ORDER BY ReturnRatePct DESC
+        &quot;&quot;&quot;,
+    ),
+    &quot;returns_by_reason&quot;: (
+        &quot;CALL GetReturnsByReason()&quot;,
+        &quot;&quot;&quot;
+        SELECT COALESCE(Reason, &#x27;Unknown&#x27;) AS Reason, COUNT(*) AS AmountOfReturns
+        FROM RMA
+        GROUP BY COALESCE(Reason, &#x27;Unknown&#x27;)
+        ORDER BY AmountOfReturns DESC
+        &quot;&quot;&quot;,
+    ),
+    &quot;returns_by_sku_for_state&quot;: (
+        &quot;CALL GetReturnsBySkuForState(:state)&quot;,
+        &quot;&quot;&quot;
+        SELECT o.SKU AS SKU, COUNT(*) AS AmountOfReturns
+        FROM RMA r
+        INNER JOIN Orders o       ON o.OrderID = r.OrderID
+        INNER JOIN Collaborator c ON c.CustomerID = o.CustomerID
+        WHERE c.State = :state
+        GROUP BY o.SKU
+        ORDER BY AmountOfReturns DESC
+        &quot;&quot;&quot;,
+    ),
+}
+
+
+# ---------------------------------------------------------------------
+# Connecting
+# ---------------------------------------------------------------------
+def connect_mysql():
+    &quot;&quot;&quot;Connect to the real MySQL database using environment variables.&quot;&quot;&quot;
+    required = [&quot;DB_HOST&quot;, &quot;DB_NAME&quot;, &quot;DB_USER&quot;, &quot;DB_PASSWORD&quot;]
+    missing = [name for name in required if not os.environ.get(name)]
+    if missing:
+        sys.exit(&quot;Missing environment variable(s): &quot; + &quot;, &quot;.join(missing)
+                 + &quot;\nSet them first (see README.md), then run again.&quot;)
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.engine import URL
+    except ImportError:
+        sys.exit(&quot;mysql mode needs SQLAlchemy and PyMySQL.\n&quot;
+                 &quot;Install them with: pip install -r requirements.txt&quot;)
+
+    url = URL.create(
+        &quot;mysql+pymysql&quot;,
+        username=os.environ[&quot;DB_USER&quot;],
+        password=os.environ[&quot;DB_PASSWORD&quot;],
+        host=os.environ[&quot;DB_HOST&quot;],
+        port=int(os.environ.get(&quot;DB_PORT&quot;, &quot;3306&quot;)),
+        database=os.environ[&quot;DB_NAME&quot;],
+    )
+    return create_engine(url).connect()
+
+
+def build_demo_database(seed=499):
+    &quot;&quot;&quot;Build a small made-up database with the same tables as the real one.&quot;&quot;&quot;
+    skus = [
+        (&quot;BAS-24-1 C&quot;, &quot;Basic Switch 10/100/1000 BaseT 24 port&quot;, 0.02),
+        (&quot;BAS-48-1 C&quot;, &quot;Basic Switch 10/100/1000 BaseT 48 port&quot;, 0.20),
+        (&quot;BAS-08-1 C&quot;, &quot;Basic Switch 10/100/1000 BaseT 8 port&quot;, 0.10),
+        (&quot;ADV-24-10C&quot;, &quot;Advanced Switch 10GigE Copper 24 port&quot;, 0.10),
+        (&quot;ADV-48-10F&quot;, &quot;Advanced Switch 10 GigE Copper/Fiber 44 port copper 4 port fiber&quot;, 0.10),
+        (&quot;ENT-24-10F&quot;, &quot;Enterprise Switch 10GigE SFP+ 24 Port&quot;, 0.10),
+        (&quot;ENT-48-10F&quot;, &quot;Enterprise Switch 10GigE SFP+ 48 port&quot;, 0.11),
+        (&quot;ENT-24-40F&quot;, &quot;Enterprise Switch 40GigE SFP+ 24 port&quot;, 0.05),
+        (&quot;ENT-48-40F&quot;, &quot;Enterprise Switch 40GigE SFP+ 48 port&quot;, 0.15),
+    ]
+    states = [
+        &quot;Alabama&quot;, &quot;Arizona&quot;, &quot;Arkansas&quot;, &quot;California&quot;, &quot;Colorado&quot;, &quot;Connecticut&quot;,
+        &quot;Delaware&quot;, &quot;Florida&quot;, &quot;Georgia&quot;, &quot;Idaho&quot;, &quot;Illinois&quot;, &quot;Indiana&quot;, &quot;Iowa&quot;,
+        &quot;Kansas&quot;, &quot;Kentucky&quot;, &quot;Louisiana&quot;, &quot;Maine&quot;, &quot;Maryland&quot;, &quot;Massachusetts&quot;,
+        &quot;Michigan&quot;, &quot;Minnesota&quot;, &quot;Mississippi&quot;, &quot;Missouri&quot;, &quot;Montana&quot;, &quot;Nebraska&quot;,
+        &quot;Nevada&quot;, &quot;New Hampshire&quot;, &quot;New Jersey&quot;, &quot;New Mexico&quot;, &quot;New York&quot;,
+        &quot;North Carolina&quot;, &quot;Ohio&quot;, &quot;Oklahoma&quot;, &quot;Oregon&quot;, &quot;Pennsylvania&quot;,
+        &quot;Rhode Island&quot;, &quot;South Carolina&quot;, &quot;Tennessee&quot;, &quot;Texas&quot;, &quot;Utah&quot;, &quot;Vermont&quot;,
+        &quot;Virginia&quot;, &quot;Washington&quot;, &quot;West Virginia&quot;, &quot;Wisconsin&quot;, &quot;Wyoming&quot;,
+    ]
+    reasons = [&quot;Defective&quot;, &quot;Wrong item&quot;, &quot;Not as described&quot;, &quot;No longer needed&quot;]
+    statuses = [&quot;Complete&quot;, &quot;Complete&quot;, &quot;Pending&quot;, &quot;In Progress&quot;]
+    steps = [&quot;Awaiting customer documentation&quot;, &quot;Credit customer account&quot;, &quot;Item received&quot;]
+
+    rng = random.Random(seed)
+    conn = sqlite3.connect(&quot;:memory:&quot;)
+    conn.executescript(&quot;&quot;&quot;
+        CREATE TABLE Collaborator (CustomerID INTEGER PRIMARY KEY, State TEXT);
+        CREATE TABLE Orders (OrderID INTEGER PRIMARY KEY, CustomerID INTEGER,
+                             SKU TEXT, Description TEXT);
+        CREATE TABLE RMA (RMAID INTEGER PRIMARY KEY, OrderID INTEGER,
+                          Step TEXT, Status TEXT, Reason TEXT);
+    &quot;&quot;&quot;)
+
+    for customer_id in range(1, 3001):
+        conn.execute(&quot;INSERT INTO Collaborator VALUES (?, ?)&quot;,
+                     (customer_id, rng.choice(states)))
+
+    rma_id = 1
+    for order_id in range(1, 6001):
+        customer_id = rng.randint(1, 3000)
+        sku, description, return_chance = rng.choice(skus)
+        conn.execute(&quot;INSERT INTO Orders VALUES (?, ?, ?, ?)&quot;,
+                     (order_id, customer_id, sku, description))
+        if rng.random() &lt; return_chance:
+            conn.execute(&quot;INSERT INTO RMA VALUES (?, ?, ?, ?, ?)&quot;,
+                         (rma_id, order_id, rng.choice(steps),
+                          rng.choice(statuses), rng.choice(reasons)))
+            rma_id += 1
+    conn.commit()
+    return conn
+
+
+# ---------------------------------------------------------------------
+# Running queries
+# ---------------------------------------------------------------------
+def fetch(connection, mode, name, params=None):
+    &quot;&quot;&quot;Run one named query and return the result as a pandas DataFrame.&quot;&quot;&quot;
+    mysql_sql, demo_sql = QUERIES[name]
+    if mode == &quot;mysql&quot;:
+        from sqlalchemy import text
+        result = connection.execute(text(mysql_sql), params or {})
+        return pd.DataFrame(result.fetchall(), columns=list(result.keys()))
+    return pd.read_sql(demo_sql, connection, params=params)
+
+
+# ---------------------------------------------------------------------
+# Analysis
+# ---------------------------------------------------------------------
+def summarize_states(states_df):
+    &quot;&quot;&quot;Basic summary statistics for returns by state.&quot;&quot;&quot;
+    counts = states_df[&quot;AmountOfReturns&quot;].astype(float)
+    return {
+        &quot;States with returns&quot;: int(len(states_df)),
+        &quot;Total returns&quot;: int(counts.sum()),
+        &quot;Average per state&quot;: round(counts.mean(), 1),
+        &quot;Median per state&quot;: round(counts.median(), 1),
+        &quot;Std. deviation&quot;: round(counts.std(), 1),
+        &quot;Highest&quot;: f&#x27;{states_df.iloc[0][&quot;State&quot;]} ({int(states_df.iloc[0][&quot;AmountOfReturns&quot;])})&#x27;,
+        &quot;Lowest&quot;: f&#x27;{states_df.iloc[-1][&quot;State&quot;]} ({int(states_df.iloc[-1][&quot;AmountOfReturns&quot;])})&#x27;,
+    }
+
+
+def build_findings(states_df, sku_df, reason_df):
+    &quot;&quot;&quot;Turn the numbers into a few plain-English findings.&quot;&quot;&quot;
+    sku_df = sku_df.copy()
+    sku_df[&quot;ReturnRatePct&quot;] = sku_df[&quot;ReturnRatePct&quot;].astype(float)
+    worst = sku_df.iloc[0]
+    best = sku_df.iloc[-1]
+    findings = [
+        f&#x27;{states_df.iloc[0][&quot;State&quot;]} has the most returns &#x27;
+        f&#x27;({int(states_df.iloc[0][&quot;AmountOfReturns&quot;])}).&#x27;,
+        f&#x27;{worst[&quot;SKU&quot;]} has the highest return rate at {worst[&quot;ReturnRatePct&quot;]}% &#x27;
+        f&#x27;of its orders.&#x27;,
+        f&#x27;{best[&quot;SKU&quot;]} has the lowest return rate at {best[&quot;ReturnRatePct&quot;]}%.&#x27;,
+    ]
+    if len(reason_df) &gt; 0:
+        findings.append(f&#x27;The most common return reason is &#x27;
+                        f&#x27;&quot;{reason_df.iloc[0][&quot;Reason&quot;]}&quot; &#x27;
+                        f&#x27;({int(reason_df.iloc[0][&quot;AmountOfReturns&quot;])} returns).&#x27;)
+    return findings
+
+
+# ---------------------------------------------------------------------
+# Charts
+# ---------------------------------------------------------------------
+def save_bar_chart(labels, values, title, xlabel, ylabel, filename, horizontal=False):
+    fig, ax = plt.subplots(figsize=(9, 5))
+    if horizontal:
+        ax.barh(labels[::-1], values[::-1], color=NAVY)
+        ax.set_xlabel(ylabel)
+        ax.set_ylabel(xlabel)
+    else:
+        ax.bar(labels, values, color=NAVY)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        plt.setp(ax.get_xticklabels(), rotation=45, ha=&quot;right&quot;)
+    ax.set_title(title)
+    fig.tight_layout()
+    path = os.path.join(OUTPUT_DIR, filename)
+    fig.savefig(path, dpi=110)
+    plt.close(fig)
+    return filename
+
+
+# ---------------------------------------------------------------------
+# HTML report
+# ---------------------------------------------------------------------
+def write_html_report(mode, summary, findings, tables, charts, top_state, top_state_df):
+    banner = &quot;&quot;
+    if mode == &quot;demo&quot;:
+        banner = (&#x27;&lt;p class=&quot;demo&quot;&gt;&lt;strong&gt;DEMO DATA:&lt;/strong&gt; this report was built from &#x27;
+                  &#x27;made-up sample data, not the real QuantigrationUpdates database.&lt;/p&gt;&#x27;)
+
+    summary_rows = &quot;&quot;.join(
+        f&quot;&lt;tr&gt;&lt;td&gt;{html.escape(str(k))}&lt;/td&gt;&lt;td&gt;{html.escape(str(v))}&lt;/td&gt;&lt;/tr&gt;&quot;
+        for k, v in summary.items())
+    findings_list = &quot;&quot;.join(f&quot;&lt;li&gt;{html.escape(f)}&lt;/li&gt;&quot; for f in findings)
+    chart_tags = &quot;&quot;.join(
+        f&#x27;&lt;h3&gt;{html.escape(title)}&lt;/h3&gt;&lt;img src=&quot;{html.escape(fname)}&quot; alt=&quot;{html.escape(title)}&quot;&gt;&#x27;
+        for title, fname in charts)
+    table_sections = &quot;&quot;.join(
+        f&quot;&lt;h3&gt;{html.escape(title)}&lt;/h3&gt;{df.to_html(index=False, escape=True)}&quot;
+        for title, df in tables)
+    state_detail = (f&quot;&lt;h3&gt;Returns by product in {html.escape(str(top_state))}&lt;/h3&gt;&quot;
+                    + top_state_df.to_html(index=False, escape=True))
+
+    page = f&quot;&quot;&quot;&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;title&gt;RMA Returns Report&lt;/title&gt;
+&lt;style&gt;
+ body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; color: #222; }}
+ h1, h2, h3 {{ color: {NAVY}; }}
+ table {{ border-collapse: collapse; margin-bottom: 20px; }}
+ th, td {{ border: 1px solid #ccc; padding: 6px 10px; text-align: left; }}
+ th {{ background: #e8ecf8; }}
+ img {{ max-width: 100%; }}
+ .demo {{ background: #fff3cd; padding: 10px; border: 1px solid #e0c36a; }}
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;h1&gt;RMA Returns Report&lt;/h1&gt;
+&lt;p&gt;Generated {datetime.now().strftime(&quot;%Y-%m-%d %H:%M&quot;)}&lt;/p&gt;
+{banner}
+&lt;h2&gt;Key findings&lt;/h2&gt;&lt;ul&gt;{findings_list}&lt;/ul&gt;
+&lt;h2&gt;Summary of returns by state&lt;/h2&gt;&lt;table&gt;{summary_rows}&lt;/table&gt;
+&lt;h2&gt;Charts&lt;/h2&gt;{chart_tags}
+&lt;h2&gt;Details&lt;/h2&gt;{table_sections}{state_detail}
+&lt;h2&gt;Limitations&lt;/h2&gt;
+&lt;p&gt;This report counts every RMA record as a return. The data does not say whether a
+return was caused by the product itself, shipping damage, or customer preference, so
+these numbers show where to look, not why returns happen.&lt;/p&gt;
+&lt;/body&gt;&lt;/html&gt;&quot;&quot;&quot;
+
+    path = os.path.join(OUTPUT_DIR, &quot;returns_report.html&quot;)
+    with open(path, &quot;w&quot;, encoding=&quot;utf-8&quot;) as f:
+        f.write(page)
+    return path
+
+
+# ---------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------
+def top_count(value):
+    &quot;&quot;&quot;argparse helper: --top must be a whole number from 1 to 50.&quot;&quot;&quot;
+    number = int(value)
+    if number &lt; 1 or number &gt; 50:
+        raise argparse.ArgumentTypeError(&quot;--top must be between 1 and 50&quot;)
+    return number
+
+
+def main():
+    parser = argparse.ArgumentParser(description=&quot;Automated RMA returns report&quot;)
+    parser.add_argument(&quot;--mode&quot;, choices=[&quot;demo&quot;, &quot;mysql&quot;], default=&quot;demo&quot;)
+    parser.add_argument(&quot;--top&quot;, type=top_count, default=10,
+                        help=&quot;how many states to show in the chart (1-50)&quot;)
+    args = parser.parse_args()
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    if args.mode == &quot;demo&quot;:
+        print(&quot;DEMO MODE: using generated sample data, not the real database.&quot;)
+        connection = build_demo_database()
+    else:
+        connection = connect_mysql()
+
+    try:
+        states_df = fetch(connection, args.mode, &quot;returns_by_state&quot;)
+        sku_df = fetch(connection, args.mode, &quot;return_rate_by_sku&quot;)
+        reason_df = fetch(connection, args.mode, &quot;returns_by_reason&quot;)
+
+        if states_df.empty or sku_df.empty:
+            sys.exit(&quot;No return data found. Check that the tables are loaded.&quot;)
+
+        top_state = states_df.iloc[0][&quot;State&quot;]
+        top_state_df = fetch(connection, args.mode, &quot;returns_by_sku_for_state&quot;,
+                             {&quot;state&quot;: top_state})
+    finally:
+        connection.close()  # always leave the connection closed
+
+    sku_df[&quot;ReturnRatePct&quot;] = sku_df[&quot;ReturnRatePct&quot;].astype(float)
+
+    summary = summarize_states(states_df)
+    findings = build_findings(states_df, sku_df, reason_df)
+
+    top = states_df.head(args.top)
+    charts = [
+        (&quot;Top states by number of returns&quot;,
+         save_bar_chart(top[&quot;State&quot;].tolist(), top[&quot;AmountOfReturns&quot;].astype(float).tolist(),
+                        f&quot;Top {len(top)} states by returns&quot;, &quot;State&quot;, &quot;Returns&quot;,
+                        &quot;returns_by_state.png&quot;)),
+        (&quot;Return rate by product&quot;,
+         save_bar_chart(sku_df[&quot;SKU&quot;].tolist(), sku_df[&quot;ReturnRatePct&quot;].tolist(),
+                        &quot;Return rate by product (% of that product&#x27;s orders)&quot;,
+                        &quot;Product SKU&quot;, &quot;Return rate (%)&quot;, &quot;return_rate_by_sku.png&quot;,
+                        horizontal=True)),
+    ]
+    tables = [
+        (&quot;Return rate by product&quot;, sku_df),
+        (&quot;Returns by reason&quot;, reason_df),
+    ]
+
+    path = write_html_report(args.mode, summary, findings, tables, charts,
+                             top_state, top_state_df)
+    print(&quot;Report written to&quot;, path)
+    for finding in findings:
+        print(&quot; -&quot;, finding)
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</code></pre></details><details class="code"><summary>test_returns_report.py</summary><pre><code>&quot;&quot;&quot;
+test_returns_report.py
+ENHANCEMENT (Milestone Four -- Databases)
+
+Tests for returns_report.py. They run against the in-memory demo database,
+so no MySQL server is needed.
+
+Run with:  python -m unittest test_returns_report -v
+&quot;&quot;&quot;
+
+import argparse
+import unittest
+
+import returns_report as rr
+
+
+class ReturnsReportTests(unittest.TestCase):
+
+    def setUp(self):
+        self.conn = rr.build_demo_database()
+
+    def tearDown(self):
+        self.conn.close()
+
+    def test_state_totals_match_rma_row_count(self):
+        # Every RMA row belongs to exactly one state, so the totals must match.
+        states = rr.fetch(self.conn, &quot;demo&quot;, &quot;returns_by_state&quot;)
+        rma_rows = self.conn.execute(&quot;SELECT COUNT(*) FROM RMA&quot;).fetchone()[0]
+        self.assertEqual(int(states[&quot;AmountOfReturns&quot;].sum()), rma_rows)
+
+    def test_states_sorted_highest_first(self):
+        states = rr.fetch(self.conn, &quot;demo&quot;, &quot;returns_by_state&quot;)
+        counts = states[&quot;AmountOfReturns&quot;].tolist()
+        self.assertEqual(counts, sorted(counts, reverse=True))
+
+    def test_return_rate_is_between_0_and_100(self):
+        skus = rr.fetch(self.conn, &quot;demo&quot;, &quot;return_rate_by_sku&quot;)
+        self.assertTrue((skus[&quot;ReturnRatePct&quot;] &gt;= 0).all())
+        self.assertTrue((skus[&quot;ReturnRatePct&quot;] &lt;= 100).all())
+
+    def test_return_rate_uses_each_products_own_orders(self):
+        # Recompute one SKU&#x27;s rate by hand and compare.
+        skus = rr.fetch(self.conn, &quot;demo&quot;, &quot;return_rate_by_sku&quot;)
+        row = skus.iloc[0]
+        orders = self.conn.execute(
+            &quot;SELECT COUNT(*) FROM Orders WHERE SKU = ?&quot;, (row[&quot;SKU&quot;],)).fetchone()[0]
+        returns = self.conn.execute(
+            &quot;SELECT COUNT(*) FROM RMA r JOIN Orders o ON o.OrderID = r.OrderID &quot;
+            &quot;WHERE o.SKU = ?&quot;, (row[&quot;SKU&quot;],)).fetchone()[0]
+        self.assertAlmostEqual(row[&quot;ReturnRatePct&quot;], round(returns * 100.0 / orders, 2), places=2)
+
+    def test_sql_injection_attempt_is_treated_as_plain_text(self):
+        # A hostile &quot;state&quot; value must not be able to run extra SQL.
+        evil = &quot;x&#x27;; DROP TABLE RMA; --&quot;
+        result = rr.fetch(self.conn, &quot;demo&quot;, &quot;returns_by_sku_for_state&quot;, {&quot;state&quot;: evil})
+        self.assertTrue(result.empty)  # no state has that name
+        still_there = self.conn.execute(&quot;SELECT COUNT(*) FROM RMA&quot;).fetchone()[0]
+        self.assertGreater(still_there, 0)  # table survived
+
+    def test_top_count_rejects_out_of_range_values(self):
+        with self.assertRaises(argparse.ArgumentTypeError):
+            rr.top_count(&quot;0&quot;)
+        with self.assertRaises(argparse.ArgumentTypeError):
+            rr.top_count(&quot;51&quot;)
+        self.assertEqual(rr.top_count(&quot;10&quot;), 10)
+
+
+if __name__ == &quot;__main__&quot;:
+    unittest.main()
+</code></pre></details><details class="code"><summary>requirements.txt</summary><pre><code>pandas
+matplotlib
+sqlalchemy
+pymysql
+</code></pre></details><p class="dls"><a class="btn" href="https://github.com/erielys-troche/CS499/tree/main/Database_Artifact_Files">View all code on GitHub</a> <a class="btn" href="CS499MilestoneFourETR.docx" download>Download narrative (Word)</a></p></section></main>
+<footer>CS 499 Computer Science Capstone, Southern New Hampshire University &middot; <a href="https://github.com/erielys-troche/CS499">Source on GitHub</a></footer></body></html>

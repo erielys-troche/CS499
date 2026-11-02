@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Code review | Erielys Troche-Rodriguez</title><meta name="description" content="Code review video for my three CS 499 artifacts.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a class="who" href="index.html">Erielys Troche-Rodriguez</a><nav aria-label="Main"><a href="index.html">Self-assessment</a><a href="code-review.html" aria-current="page">Code review</a><a href="software.html">Software design</a><a href="algorithms.html">Algorithms</a><a href="databases.html">Databases</a></nav></header>
+<main><section class="hero"><h1>Code review</h1><p class="lead">A walkthrough of my three original projects and how I planned to enhance each one.</p></section>
+<div class="video"><iframe src="https://www.loom.com/embed/375cbb1afdc848f789f867a707820894" title="Code review video" allowfullscreen></iframe></div>
+<p><a href="https://www.loom.com/share/375cbb1afdc848f789f867a707820894">Open the video on Loom</a> if it doesn't load here.</p>
+<section><h2>What I found in each project</h2><ul>
+<li><strong>Global Rain (Java):</strong> the fee amounts were hardcoded numbers scattered through if-else statements, there was no input validation, and there were no tests.</li>
+<li><strong>Course Planner (C++):</strong> the binary search tree was unbalanced, and there was no way to catch a circular prerequisite.</li>
+<li><strong>Database (MySQL):</strong> every query was typed by hand, and the report was built by pasting screenshots into Word.</li></ul></section>
+<section><h2>A correction to the video</h2><p>In the video I said the foreign key columns were not indexed. My own DESCRIBE output shows MySQL had already indexed them, so I changed the plan to index State, SKU, and Status instead. The video and my Milestone Four narrative do not fully match because of this.</p></section></main>
+<footer>CS 499 Computer Science Capstone, Southern New Hampshire University &middot; <a href="https://github.com/erielys-troche/CS499">Source on GitHub</a></footer></body></html>
