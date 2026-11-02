@@ -1,0 +1,403 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Software design and engineering: Global Rain | Erielys Troche Rodriguez</title><meta name="description" content="A Java pet boarding program from IT 145, reworked so pricing rules are easy to change.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head><body>
+<header><a class="who" href="index.html">Erielys Troche Rodriguez</a><nav aria-label="Main"><a href="index.html">Self-assessment</a><a href="code-review.html">Code review</a><a href="software.html" aria-current="page">Software design</a><a href="algorithms.html">Algorithms</a><a href="databases.html">Databases</a></nav></header>
+<main><section class="hero"><h1>Software design and engineering: Global Rain</h1><p class="lead">A Java pet boarding program from IT 145, reworked so pricing rules are easy to change.</p></section><section><h2>Original artifact</h2><p>I wrote this in IT 145. A <code>Pet</code> class and a <code>Dog</code> subclass calculate grooming and stay fees with nested if-else statements and unexplained numbers like 19.95 and 20.</p></section>
+<section><h2>What I changed</h2><p>I pulled the fee logic into a <code>FeeStrategy</code> interface (the Strategy pattern). Dogs and cats each get their own strategy class with named constants, and a new pet type only needs a new class. I also added a <code>Cat</code> class and JUnit 5 tests.</p>
+<pre class="snip"><code> */
+public interface FeeStrategy {
+    double calculateGroomingFee(Pet pet);
+    double calculateStayFee(Pet pet);</code></pre>
+<p>Because <code>DogFeeStrategy</code> uses named constants, the whole fee schedule is in one place:</p>
+<pre class="snip"><code>public class DogFeeStrategy implements FeeStrategy {
+
+    private static final double SMALL_DOG_GROOMING_FEE = 19.95;
+    private static final double MEDIUM_DOG_GROOMING_FEE = 24.95;
+    private static final double LARGE_DOG_GROOMING_FEE = 29.95;
+
+    private static final double SMALL_DOG_STAY_FEE = 24.00;
+    private static final double MEDIUM_DOG_STAY_FEE = 29.00;
+    private static final double LARGE_DOG_STAY_FEE = 34.00;
+</code></pre></section>
+<section><h2>Course outcomes</h2><p>Mostly outcome 3 (design trade-offs) and 4 (using a well-known design pattern). It also helps outcome 1, since the code is easier for another person to read. <strong>Not fully met:</strong> I haven't compiled or run this enhancement in the capstone workspace, so the unit tests still need to be run in my IDE.</p></section><section><h2>Code</h2><h3>Original</h3><details class="code"><summary>Pet.java</summary><pre><code>/**
+ * Pet.java
+ * Original artifact from IT 145 (Global Rain).
+ *
+ * Base class for all pets in the Global Rain boarding system. Provides
+ * default fee calculations (used as-is for cats) that the Dog subclass
+ * overrides with weight-based pricing.
+ */
+public class Pet {
+    private String name;
+    private double weight;
+    private int stayDays;
+
+    public Pet(String name, double weight, int stayDays) {
+        this.name = name;
+        this.weight = weight;
+        this.stayDays = stayDays;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public double getWeight() {
+        return weight;
+    }
+
+    public int getStayDays() {
+        return stayDays;
+    }
+
+    // Default grooming fee. Cats are not groomed, so this is 0.
+    public double calculateGroomingFee() {
+        return 0.0;
+    }
+
+    // Default stay fee. Used by cats.
+    public double calculateStayFee() {
+        return 18.00;
+    }
+
+    public double getTotalFee() {
+        return calculateGroomingFee() + calculateStayFee();
+    }
+}
+</code></pre></details><details class="code"><summary>Dog.java</summary><pre><code>/**
+ * Dog.java
+ * Original artifact from IT 145 (Global Rain).
+ *
+ * Subclass of Pet with dog-specific fee calculations based on weight.
+ *
+ * NOTE (flagged in the Milestone One code review): fee amounts below are
+ * hardcoded &quot;magic numbers&quot; instead of named constants, and there is no
+ * validation of weight or stayDays, so invalid input (e.g. a negative
+ * weight) would silently produce a fee instead of raising an error.
+ */
+public class Dog extends Pet {
+
+    public Dog(String name, double weight, int stayDays) {
+        super(name, weight, stayDays);
+    }
+
+    @Override
+    public double calculateGroomingFee() {
+        if (getStayDays() &lt; 2) {
+            return 0.0;
+        }
+        if (getWeight() &lt; 20) {
+            return 19.95;
+        } else if (getWeight() &lt; 30) {
+            return 24.95;
+        } else {
+            return 29.95;
+        }
+    }
+
+    @Override
+    public double calculateStayFee() {
+        if (getWeight() &lt; 20) {
+            return 24.00;
+        } else if (getWeight() &lt; 30) {
+            return 29.00;
+        } else {
+            return 34.00;
+        }
+    }
+}
+</code></pre></details><details class="code"><summary>Main.java</summary><pre><code>import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Main.java
+ * Original artifact from IT 145 (Global Rain).
+ *
+ * Demonstrates the pet check-out fee calculator. No input validation
+ * exists yet -- this is addressed in the Milestone Two enhancement.
+ */
+public class Main {
+    public static void main(String[] args) {
+        List&lt;Pet&gt; pets = new ArrayList&lt;Pet&gt;();
+        pets.add(new Dog(&quot;Rex&quot;, 45, 3));
+        pets.add(new Pet(&quot;Whiskers&quot;, 9, 4)); // cat, uses default Pet fees
+        pets.add(new Dog(&quot;Milo&quot;, 15, 1));
+
+        for (Pet pet : pets) {
+            System.out.println(pet.getName() + &quot;: $&quot; + pet.getTotalFee());
+        }
+    }
+}
+</code></pre></details><h3>Enhanced</h3><details class="code"><summary>FeeStrategy.java</summary><pre><code>/**
+ * FeeStrategy.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * Strategy interface for computing a pet&#x27;s grooming and stay fees. This
+ * pulls fee logic out of the Pet class hierarchy so new pricing rules,
+ * or an entirely new pet type, can be added by writing a new strategy
+ * class instead of modifying existing ones. This directly addresses the
+ * extensibility weakness flagged in the Milestone One code review.
+ */
+public interface FeeStrategy {
+    double calculateGroomingFee(Pet pet);
+    double calculateStayFee(Pet pet);
+}
+</code></pre></details><details class="code"><summary>DogFeeStrategy.java</summary><pre><code>/**
+ * DogFeeStrategy.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * Fee rules for dogs, based on weight and length of stay. The magic
+ * numbers from the original Dog class have been replaced with named
+ * constants, so the fee schedule is self-documenting and can be updated
+ * in one place instead of hunting through if-else branches.
+ */
+public class DogFeeStrategy implements FeeStrategy {
+
+    private static final double SMALL_DOG_GROOMING_FEE = 19.95;
+    private static final double MEDIUM_DOG_GROOMING_FEE = 24.95;
+    private static final double LARGE_DOG_GROOMING_FEE = 29.95;
+
+    private static final double SMALL_DOG_STAY_FEE = 24.00;
+    private static final double MEDIUM_DOG_STAY_FEE = 29.00;
+    private static final double LARGE_DOG_STAY_FEE = 34.00;
+
+    private static final double SMALL_MEDIUM_WEIGHT_THRESHOLD = 20.0;
+    private static final double MEDIUM_LARGE_WEIGHT_THRESHOLD = 30.0;
+    private static final int MINIMUM_STAY_FOR_GROOMING = 2;
+
+    @Override
+    public double calculateGroomingFee(Pet pet) {
+        if (pet.getStayDays() &lt; MINIMUM_STAY_FOR_GROOMING) {
+            return 0.0;
+        }
+        if (pet.getWeight() &lt; SMALL_MEDIUM_WEIGHT_THRESHOLD) {
+            return SMALL_DOG_GROOMING_FEE;
+        } else if (pet.getWeight() &lt; MEDIUM_LARGE_WEIGHT_THRESHOLD) {
+            return MEDIUM_DOG_GROOMING_FEE;
+        } else {
+            return LARGE_DOG_GROOMING_FEE;
+        }
+    }
+
+    @Override
+    public double calculateStayFee(Pet pet) {
+        if (pet.getWeight() &lt; SMALL_MEDIUM_WEIGHT_THRESHOLD) {
+            return SMALL_DOG_STAY_FEE;
+        } else if (pet.getWeight() &lt; MEDIUM_LARGE_WEIGHT_THRESHOLD) {
+            return MEDIUM_DOG_STAY_FEE;
+        } else {
+            return LARGE_DOG_STAY_FEE;
+        }
+    }
+}
+</code></pre></details><details class="code"><summary>CatFeeStrategy.java</summary><pre><code>/**
+ * CatFeeStrategy.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * Fee rules for cats: no grooming fee, flat stay fee. Previously this
+ * logic lived as &quot;default&quot; behavior on the Pet base class itself, which
+ * mixed &quot;what a cat is&quot; with &quot;how a cat is priced.&quot; Pulling it into its
+ * own strategy keeps that separation clean.
+ */
+public class CatFeeStrategy implements FeeStrategy {
+
+    private static final double CAT_STAY_FEE = 18.00;
+
+    @Override
+    public double calculateGroomingFee(Pet pet) {
+        return 0.0;
+    }
+
+    @Override
+    public double calculateStayFee(Pet pet) {
+        return CAT_STAY_FEE;
+    }
+}
+</code></pre></details><details class="code"><summary>Pet.java</summary><pre><code>/**
+ * Pet.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * Base class for all pets in the Global Rain boarding system.
+ *
+ * Two enhancements over the original artifact:
+ *  1. The constructor now validates its inputs and throws
+ *     IllegalArgumentException on bad data, instead of silently
+ *     accepting a negative weight or stay length.
+ *  2. Fee calculation is delegated to a FeeStrategy (Strategy design
+ *     pattern) instead of being implemented directly on Pet/Dog.
+ */
+public class Pet {
+    private final String name;
+    private final double weight;
+    private final int stayDays;
+    private final FeeStrategy feeStrategy;
+
+    public Pet(String name, double weight, int stayDays, FeeStrategy feeStrategy) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException(&quot;Pet name cannot be empty.&quot;);
+        }
+        if (weight &lt;= 0) {
+            throw new IllegalArgumentException(&quot;Pet weight must be greater than zero.&quot;);
+        }
+        if (stayDays &lt; 0) {
+            throw new IllegalArgumentException(&quot;Stay length cannot be negative.&quot;);
+        }
+        this.name = name;
+        this.weight = weight;
+        this.stayDays = stayDays;
+        this.feeStrategy = feeStrategy;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public double getWeight() {
+        return weight;
+    }
+
+    public int getStayDays() {
+        return stayDays;
+    }
+
+    public double calculateGroomingFee() {
+        return feeStrategy.calculateGroomingFee(this);
+    }
+
+    public double calculateStayFee() {
+        return feeStrategy.calculateStayFee(this);
+    }
+
+    public double getTotalFee() {
+        return calculateGroomingFee() + calculateStayFee();
+    }
+}
+</code></pre></details><details class="code"><summary>Dog.java</summary><pre><code>/**
+ * Dog.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * A dog checking into Global Rain. All dog-specific pricing logic now
+ * lives in DogFeeStrategy, so this class only wires that strategy in.
+ */
+public class Dog extends Pet {
+    public Dog(String name, double weight, int stayDays) {
+        super(name, weight, stayDays, new DogFeeStrategy());
+    }
+}
+</code></pre></details><details class="code"><summary>Cat.java</summary><pre><code>/**
+ * Cat.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * A cat checking into Global Rain. Previously cats had no class of
+ * their own -- they were just plain Pet objects, which meant &quot;cat
+ * pricing&quot; and &quot;the base pet type&quot; were the same thing. Giving cats
+ * their own class makes the model clearer and matches the Dog class.
+ */
+public class Cat extends Pet {
+    public Cat(String name, double weight, int stayDays) {
+        super(name, weight, stayDays, new CatFeeStrategy());
+    }
+}
+</code></pre></details><details class="code"><summary>Main.java</summary><pre><code>import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Main.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * Demonstrates the enhanced Global Rain fee calculator, including the
+ * input validation added in this milestone.
+ */
+public class Main {
+    public static void main(String[] args) {
+        List&lt;Pet&gt; pets = new ArrayList&lt;Pet&gt;();
+        pets.add(new Dog(&quot;Rex&quot;, 45, 3));
+        pets.add(new Cat(&quot;Whiskers&quot;, 9, 4));
+        pets.add(new Dog(&quot;Milo&quot;, 15, 1));
+
+        for (Pet pet : pets) {
+            System.out.printf(&quot;%s: $%.2f%n&quot;, pet.getName(), pet.getTotalFee());
+        }
+
+        // Demonstrates the new validation. In the original version, this
+        // would have silently produced a nonsense fee. Now it fails fast
+        // with a clear, human-readable error message instead.
+        try {
+            Pet invalidPet = new Dog(&quot;Buddy&quot;, -12, 2);
+            System.out.println(invalidPet.getTotalFee());
+        } catch (IllegalArgumentException e) {
+            System.out.println(&quot;Could not check in pet: &quot; + e.getMessage());
+        }
+    }
+}
+</code></pre></details><details class="code"><summary>PetTest.java</summary><pre><code>import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+/**
+ * PetTest.java
+ * ENHANCEMENT (Milestone Two — Software Design and Engineering).
+ *
+ * JUnit 5 tests covering the fee boundary conditions identified in the
+ * Milestone One code review (20 lb / 30 lb weight cutoffs, 2-day stay
+ * cutoff), plus the new input validation. Add the JUnit 5 dependency
+ * (org.junit.jupiter:junit-jupiter) to run these in your IDE or with
+ * Maven/Gradle.
+ */
+public class PetTest {
+
+    @Test
+    void smallDogGroomingFeeAtBoundary() {
+        Dog dog = new Dog(&quot;Buddy&quot;, 19.99, 3);
+        assertEquals(19.95, dog.calculateGroomingFee(), 0.001);
+    }
+
+    @Test
+    void mediumDogGroomingFeeAtBoundary() {
+        Dog dog = new Dog(&quot;Duke&quot;, 20.0, 3);
+        assertEquals(24.95, dog.calculateGroomingFee(), 0.001);
+    }
+
+    @Test
+    void largeDogGroomingFeeAtBoundary() {
+        Dog dog = new Dog(&quot;Zeus&quot;, 30.0, 3);
+        assertEquals(29.95, dog.calculateGroomingFee(), 0.001);
+    }
+
+    @Test
+    void noGroomingFeeUnderTwoDayStay() {
+        Dog dog = new Dog(&quot;Milo&quot;, 15, 1);
+        assertEquals(0.0, dog.calculateGroomingFee(), 0.001);
+    }
+
+    @Test
+    void catNeverChargedGroomingFee() {
+        Cat cat = new Cat(&quot;Whiskers&quot;, 9, 5);
+        assertEquals(0.0, cat.calculateGroomingFee(), 0.001);
+    }
+
+    @Test
+    void catFlatStayFee() {
+        Cat cat = new Cat(&quot;Whiskers&quot;, 9, 5);
+        assertEquals(18.00, cat.calculateStayFee(), 0.001);
+    }
+
+    @Test
+    void negativeWeightThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -&gt; new Dog(&quot;Buddy&quot;, -5, 2));
+    }
+
+    @Test
+    void negativeStayDaysThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -&gt; new Dog(&quot;Buddy&quot;, 20, -1));
+    }
+
+    @Test
+    void emptyNameThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -&gt; new Dog(&quot;&quot;, 20, 2));
+    }
+}
+</code></pre></details><p class="dls"><a class="btn" href="https://github.com/erielys-troche/CS499/tree/main/GlobalRain_Artifact_Files">View all code on GitHub</a> <a class="btn" href="CS499MilestoneTwoETR.docx" download>Download narrative (Word)</a></p></section></main>
+<footer>CS 499 Computer Science Capstone, SNHU &middot; <a href="https://github.com/erielys-troche/CS499">Source on GitHub</a></footer></body></html>
